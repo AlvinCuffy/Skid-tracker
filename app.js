@@ -109,7 +109,7 @@
 
   /* ---------- Claude Vision OCR ---------- */
   function extractLoadFromImage(imageBase64, callback) {
-    fetch('/api/ocr', {
+    fetch('https://skid-tracker-lo291p8j5-alvincuffys-projects.vercel.app/api/ocr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64: imageBase64 })
