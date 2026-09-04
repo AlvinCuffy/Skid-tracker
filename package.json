@@ -1,0 +1,9 @@
+{
+  "name": "skid-tracker-ocr",
+  "version": "1.0.0",
+  "description": "Serverless backend for Skid Tracker OCR",
+  "private": true,
+  "engines": {
+    "node": "18.x"
+  }
+}
