@@ -109,13 +109,6 @@
 
   /* ---------- Claude Vision OCR ---------- */
   function extractLoadFromImage(imageBase64, callback) {
-    var apiKey = getApiKey();
-    if (!apiKey) {
-      toast('API key not set. Use settings to add your Claude API key.');
-      callback(null);
-      return;
-    }
-
     var prompt = 'Extract the following information from this warehouse tally sheet:\n' +
       '1. Receipt number (e.g., "WRT-000016633")\n' +
       '2. Customer name\n' +
@@ -143,7 +136,7 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': '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',
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify(data)
