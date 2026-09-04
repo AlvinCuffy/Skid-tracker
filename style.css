@@ -226,6 +226,9 @@ button { font: inherit; color: inherit; }
 .error { display: none; color: var(--error); font-size: 14px; margin-top: 6px; }
 .field.invalid .error { display: block; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; font-size: 14px; color: var(--text-2); margin-bottom: 6px; font-weight: 500; }
+.form-group small { display: block; font-size: 13px; color: var(--muted); margin-top: 6px; }
 .form-section { margin-bottom: 12px; }
 .line-block { margin-bottom: 12px; }
 .line-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }

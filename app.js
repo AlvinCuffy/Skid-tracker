@@ -20,7 +20,9 @@
     arrowLeft: svg('<path d="M5 12h14"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/>'),
     copy: svg('<path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z"/><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"/>'),
     download: svg('<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 11l5 5l5 -5"/><path d="M12 4l0 12"/>'),
-    upload: svg('<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>')
+    upload: svg('<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>'),
+    camera: svg('<path d="M12 3c4.97 0 9 3.582 9 8s-4.03 8 -9 8s-9 -3.582 -9 -8s4.03 -8 9 -8z"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/>'),
+    settings: svg('<path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37 .996 .608 2.296 .07 2.572 -1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>')
   };
 
   /* ---------- Utilities ---------- */
@@ -94,6 +96,120 @@
     });
     out.complete = out.skidsTotal > 0 && out.skidsDone === out.skidsTotal;
     return out;
+  }
+
+  /* ---------- API Key Management ---------- */
+  var APIKEY_KEY = 'skidTracker_apiKey';
+  function getApiKey() {
+    try { return localStorage.getItem(APIKEY_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setApiKey(key) {
+    try { localStorage.setItem(APIKEY_KEY, key); } catch (e) { }
+  }
+
+  /* ---------- Claude Vision OCR ---------- */
+  function extractLoadFromImage(imageBase64, callback) {
+    var apiKey = getApiKey();
+    if (!apiKey) {
+      toast('API key not set. Use settings to add your Claude API key.');
+      callback(null);
+      return;
+    }
+
+    var prompt = 'Extract the following information from this warehouse tally sheet:\n' +
+      '1. Receipt number (e.g., "WRT-000016633")\n' +
+      '2. Customer name\n' +
+      '3. Door/location code\n' +
+      '4. Date (YYYY-MM-DD format, or leave if unclear)\n' +
+      '5. Each line item with: product description, tie/pack size, tier/layers, and total cases\n\n' +
+      'Format your response EXACTLY like this:\nRECEIPT: [receipt]\nCUSTOMER: [customer]\nDOOR: [door]\nDATE: [date]\n\nLINES:\n[Line 1: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n[Line 2: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n...and so on for each line';
+
+    var data = {
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 }
+        }, {
+          type: 'text',
+          text: prompt
+        }]
+      }]
+    };
+
+    fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          throw new Error('API error: ' + r.status + ' ' + t);
+        });
+      }
+      return r.json();
+    })
+    .then(function (result) {
+      var text = result.content && result.content[0] && result.content[0].text;
+      if (!text) { toast('No response from Claude.'); callback(null); return; }
+      var load = parseExtractedLoad(text);
+      if (load) {
+        callback(load);
+      } else {
+        toast('Could not parse extracted data. Try entering manually.');
+        callback(null);
+      }
+    })
+    .catch(function (err) {
+      toast('Error: ' + err.message);
+      callback(null);
+    });
+  }
+
+  function parseExtractedLoad(text) {
+    var lines = text.split('\n');
+    var load = { receipt: '', customer: '', door: '', date: todayISO(), lines: [] };
+    var currentLine = null;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+
+      if (line.startsWith('RECEIPT:')) {
+        load.receipt = line.substring('RECEIPT:'.length).trim();
+      } else if (line.startsWith('CUSTOMER:')) {
+        load.customer = line.substring('CUSTOMER:'.length).trim();
+      } else if (line.startsWith('DOOR:')) {
+        load.door = line.substring('DOOR:'.length).trim();
+      } else if (line.startsWith('DATE:')) {
+        var d = line.substring('DATE:'.length).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) load.date = d;
+      } else if (line.startsWith('LINES:')) {
+        currentLine = null;
+      } else if (line.toLowerCase().startsWith('tie:')) {
+        var tieVal = parseInt(line.substring('Tie:'.length).trim());
+        if (currentLine && tieVal) currentLine.tie = tieVal;
+      } else if (line.toLowerCase().startsWith('tier:')) {
+        var tierVal = parseInt(line.substring('Tier:'.length).trim());
+        if (currentLine && tierVal) currentLine.tier = tierVal;
+      } else if (line.toLowerCase().startsWith('cases:')) {
+        var casesVal = parseInt(line.substring('Cases:'.length).trim());
+        if (currentLine && casesVal) currentLine.cases = casesVal;
+        load.lines.push(currentLine);
+        currentLine = null;
+      } else if (line && !line.includes(':')) {
+        currentLine = { id: uuid(), description: line, tie: 0, tier: 0, cases: 0 };
+      }
+    }
+
+    return load.lines.length > 0 ? load : null;
   }
 
   /* ---------- Storage ---------- */
@@ -190,6 +306,8 @@
     } else if ((m = /^#\/edit\/([\w-]+)$/.exec(h))) {
       var editing = findLoad(m[1]);
       if (editing) return renderForm(editing);
+    } else if (h === '#/settings') {
+      return renderSettings();
     }
     if (h !== '#/') history.replaceState(null, '', '#/');
     renderHome();
@@ -202,6 +320,25 @@
   });
 
   /* ---------- Home ---------- */
+  function renderSettings() {
+    var apiKey = getApiKey();
+    var html = '<header class="bar"><h1>Settings</h1><button type="button" class="icon-btn" data-nav="#/">' + ICON.arrowLeft + '</button></header>';
+    html += '<div class="form-group">' +
+      '<label for="api-key-input">Claude API Key</label>' +
+      '<input type="password" id="api-key-input" value="' + esc(apiKey) + '" placeholder="sk-ant-..." />' +
+      '<small>Your API key is stored only in your browser. Never shared or sent anywhere.</small>' +
+    '</div>';
+    html += '<button type="button" class="btn primary" id="save-api-key">Save API Key</button>';
+    app.innerHTML = html;
+
+    document.getElementById('save-api-key').addEventListener('click', function () {
+      var key = document.getElementById('api-key-input').value.trim();
+      setApiKey(key);
+      toast('API key saved.');
+      setTimeout(function () { go('#/'); }, 500);
+    });
+  }
+
   function renderHome() {
     var loads = state.loads.slice().map(function (l) { return { load: l, stats: loadStats(l) }; });
     loads.sort(function (a, b) {
@@ -229,10 +366,13 @@
       html += '</ul>';
     }
     html += '<button type="button" class="btn primary" data-nav="#/new">' + ICON.plus + 'New load</button>';
+    html += '<button type="button" class="btn" id="snap-sheet">' + ICON.camera + 'Snap sheet</button>';
     html += '<div class="tools">' +
       '<button type="button" class="btn" id="export-json">' + ICON.download + 'Export JSON</button>' +
       '<button type="button" class="btn" id="import-json">' + ICON.upload + 'Import JSON</button>' +
+      '<button type="button" class="btn" id="settings-btn">' + ICON.settings + 'Settings</button>' +
       '<input type="file" id="import-file" accept="application/json,.json" hidden>' +
+      '<input type="file" id="snap-file" accept="image/*" hidden>' +
     '</div>';
     app.innerHTML = html;
 
@@ -258,6 +398,29 @@
       reader.onload = function () { importJSON(String(reader.result)); };
       reader.readAsText(f);
     });
+
+    var snapFile = document.getElementById('snap-file');
+    document.getElementById('snap-sheet').addEventListener('click', function () { snapFile.click(); });
+    snapFile.addEventListener('change', function () {
+      var f = snapFile.files && snapFile.files[0];
+      if (!f) return;
+      toast('Processing image...');
+      var reader = new FileReader();
+      reader.onload = function () {
+        var base64 = String(reader.result).split(',')[1] || String(reader.result);
+        extractLoadFromImage(base64, function (load) {
+          if (load) {
+            state.loads.push(load);
+            saveState();
+            route('#/edit/' + load.id);
+          }
+        });
+      };
+      reader.readAsDataURL(f);
+      snapFile.value = '';
+    });
+
+    document.getElementById('settings-btn').addEventListener('click', renderSettings);
   }
 
   function exportJSON() {
