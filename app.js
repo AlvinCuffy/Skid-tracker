@@ -109,48 +109,24 @@
 
   /* ---------- Claude Vision OCR ---------- */
   function extractLoadFromImage(imageBase64, callback) {
-    var prompt = 'Extract the following information from this warehouse tally sheet:\n' +
-      '1. Receipt number (e.g., "WRT-000016633")\n' +
-      '2. Customer name\n' +
-      '3. Door/location code\n' +
-      '4. Date (YYYY-MM-DD format, or leave if unclear)\n' +
-      '5. Each line item with: product description, tie/pack size, tier/layers, and total cases\n\n' +
-      'Format your response EXACTLY like this:\nRECEIPT: [receipt]\nCUSTOMER: [customer]\nDOOR: [door]\nDATE: [date]\n\nLINES:\n[Line 1: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n[Line 2: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n...and so on for each line';
+    var backendUrl = 'https://skid-tracker.up.railway.app/api/ocr';
 
-    var data = {
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [{
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 }
-        }, {
-          type: 'text',
-          text: prompt
-        }]
-      }]
-    };
-
-    fetch('https://api.anthropic.com/v1/messages', {
+    fetch(backendUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': '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',
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(data)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: imageBase64 })
     })
     .then(function (r) {
       if (!r.ok) {
         return r.text().then(function (t) {
-          throw new Error('API error: ' + r.status + ' ' + t);
+          throw new Error('Backend error: ' + r.status + ' ' + t);
         });
       }
       return r.json();
     })
     .then(function (result) {
-      var text = result.content && result.content[0] && result.content[0].text;
+      if (result.error) { toast('Error: ' + result.error); callback(null); return; }
+      var text = result.text;
       if (!text) { toast('No response from Claude.'); callback(null); return; }
       var load = parseExtractedLoad(text);
       if (load) {
