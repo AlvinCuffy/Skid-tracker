@@ -109,44 +109,10 @@
 
   /* ---------- Claude Vision OCR ---------- */
   function extractLoadFromImage(imageBase64, callback) {
-    var apiKey = getApiKey();
-    if (!apiKey) {
-      toast('API key not set. Use settings to add your Claude API key.');
-      callback(null);
-      return;
-    }
-
-    var prompt = 'Extract the following information from this warehouse tally sheet:\n' +
-      '1. Receipt number (e.g., "WRT-000016633")\n' +
-      '2. Customer name\n' +
-      '3. Door/location code\n' +
-      '4. Date (YYYY-MM-DD format, or leave if unclear)\n' +
-      '5. Each line item with: product description, tie/pack size, tier/layers, and total cases\n\n' +
-      'Format your response EXACTLY like this:\nRECEIPT: [receipt]\nCUSTOMER: [customer]\nDOOR: [door]\nDATE: [date]\n\nLINES:\n[Line 1: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n[Line 2: description]\nTie: [number]\nTier: [number]\nCases: [number]\n\n...and so on for each line';
-
-    var data = {
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [{
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 }
-        }, {
-          type: 'text',
-          text: prompt
-        }]
-      }]
-    };
-
-    fetch('https://api.anthropic.com/v1/messages', {
+    fetch('/api/ocr', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(data)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: imageBase64 })
     })
     .then(function (r) {
       if (!r.ok) {
@@ -157,7 +123,8 @@
       return r.json();
     })
     .then(function (result) {
-      var text = result.content && result.content[0] && result.content[0].text;
+      if (result.error) { toast('Error: ' + result.error); callback(null); return; }
+      var text = result.text;
       if (!text) { toast('No response from Claude.'); callback(null); return; }
       var load = parseExtractedLoad(text);
       if (load) {
@@ -321,22 +288,12 @@
 
   /* ---------- Home ---------- */
   function renderSettings() {
-    var apiKey = getApiKey();
     var html = '<header class="bar"><h1>Settings</h1><button type="button" class="icon-btn" data-nav="#/">' + ICON.arrowLeft + '</button></header>';
     html += '<div class="form-group">' +
-      '<label for="api-key-input">Claude API Key</label>' +
-      '<input type="password" id="api-key-input" value="' + esc(apiKey) + '" placeholder="sk-ant-..." />' +
-      '<small>Your API key is stored only in your browser. Never shared or sent anywhere.</small>' +
+      '<label>Snap Sheet (OCR)</label>' +
+      '<small>Photo extraction is powered by Claude Vision AI. Take or upload a picture of your tally sheet and it will automatically extract receipt, customer, door, and line items. No setup needed!</small>' +
     '</div>';
-    html += '<button type="button" class="btn primary" id="save-api-key">Save API Key</button>';
     app.innerHTML = html;
-
-    document.getElementById('save-api-key').addEventListener('click', function () {
-      var key = document.getElementById('api-key-input').value.trim();
-      setApiKey(key);
-      toast('API key saved.');
-      setTimeout(function () { go('#/'); }, 500);
-    });
   }
 
   function renderHome() {
