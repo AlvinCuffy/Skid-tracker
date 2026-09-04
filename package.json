@@ -1,9 +1,19 @@
 {
   "name": "skid-tracker-ocr",
   "version": "1.0.0",
-  "description": "Serverless backend for Skid Tracker OCR",
+  "description": "OCR backend for Skid Tracker",
   "private": true,
   "engines": {
     "node": "18.x"
+  },
+  "main": "railway-server.js",
+  "scripts": {
+    "start": "node railway-server.js",
+    "dev": "node railway-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.7.0"
   }
 }
