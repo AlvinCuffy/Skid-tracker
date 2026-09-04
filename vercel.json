@@ -1,6 +1,10 @@
 {
-  "buildCommand": "mkdir -p public && echo 'OCR Backend' > public/index.txt",
-  "outputDirectory": "public",
+  "version": 2,
+  "functions": {
+    "api/**": {
+      "runtime": "node18.x"
+    }
+  },
   "env": {
     "CLAUDE_API_KEY": "@claude_api_key"
   }
