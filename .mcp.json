@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "subscribr": {
+      "type": "http",
+      "url": "https://subscribr.ai/mcp/subscribr"
+    }
+  }
+}
