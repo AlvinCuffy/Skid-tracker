@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "ls public",
+  "outputDirectory": "public",
+  "functions": {
+    "api/**": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
